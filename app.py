@@ -1,36 +1,66 @@
-from flask import Flask, render_template, request
-import pickle
-import numpy as np
+import streamlit as st
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from sklearn.tree import DecisionTreeClassifier
 
-app = Flask(__name__)
+data = {
+'Outlook': ['Sunny', 'Sunny', 'Overcast', 'Rain', 'Rain', 'Rain',
+'Overcast', 'Sunny',
+'Sunny', 'Rain', 'Sunny', 'Overcast', 'Overcast',
+'Rain'],
+'Temperature':['Hot', 'Hot', 'Hot', 'Mild', 'Cool', 'Cool', 'Cool',
+'Mild',
+'Cool', 'Mild', 'Mild', 'Mild', 'Hot', 'Mild'],
+'Humidity': ['High', 'High', 'High', 'High', 'Normal', 'Normal',
+'Normal', 'High',
+'Normal', 'Normal', 'Normal', 'High', 'Normal', 'High'],
+'Wind': ['Weak', 'Strong', 'Weak', 'Weak', 'Weak', 'Strong',
+'Strong', 'Weak',
+'Weak', 'Weak', 'Strong', 'Strong', 'Weak', 'Strong'],
+'PlayTennis': ['No', 'No', 'Yes', 'Yes', 'Yes', 'No', 'Yes', 'No',
+'Yes', 'Yes', 'Yes', 'Yes', 'Yes', 'No']
+}
 
-# Load the trained model
-model = pickle.load(open("C:/Users/varsh/PycharmProjects/FlaskProject2/model_fit.pkl", "rb"))
+df = pd.DataFrame(data)
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+df_encoded = df.copy()
+label_encoders = {}
+for column in df.columns:
+   le = LabelEncoder()
+   df_encoded[column] = le.fit_transform(df[column])
+   label_encoders[column] = le
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    try:
-        # Get values from the form
-        price = float(request.form['Priceperweek'])
-        population = int(request.form['Population'])
-        income = float(request.form['Monthlyincome'])
-        parking = float(request.form['Averageparkingpermonth'])
+X = df_encoded.drop('PlayTennis', axis=1)
+y = df_encoded['PlayTennis']
 
-        # Make prediction
-        features = np.array([[price, population, income, parking]])
-        print("📦 Input to model:", features)
+model = DecisionTreeClassifier(criterion='entropy')
+model.fit(X, y)
 
-        prediction = model.predict(features)[0]
-        print("✅ Prediction:", prediction)
+st.title("PlayTennis Prediction with ID3 Decision Tree")
 
-        return render_template('result.html', prediction=round(prediction, 2))
-    except Exception as e:
-        print("🔥 ERROR:", e)  # This shows the exact issue in terminal
-        return render_template('result.html', prediction="Error: Invalid Input")
+st.sidebar.header("Input Weather Conditions")
+def user_input():
+   outlook = st.sidebar.selectbox("Outlook",
+df['Outlook'].unique())
+   temp = st.sidebar.selectbox("Temperature",
+df['Temperature'].unique())
+   humidity = st.sidebar.selectbox("Humidity",
+df['Humidity'].unique())
+   wind = st.sidebar.selectbox("Wind", df['Wind'].unique())
+   return pd.DataFrame([[outlook, temp, humidity, wind]],
+    columns=['Outlook', 'Temperature', 'Humidity','Wind'])
 
-if __name__ == '__main__':
-    app.run(debug=True)
+input_df = user_input()
+
+input_encoded = input_df.copy()
+for col in input_encoded.columns:
+   input_encoded[col] =label_encoders[col].transform(input_encoded[col])
+
+prediction = model.predict(input_encoded)[0]
+prediction_label =label_encoders['PlayTennis'].inverse_transform([prediction])[0]
+st.subheader("Prediction:")
+st.success(f"The model predicts: {prediction_label}")
+st.subheader("Input Values:")
+st.write(input_df)
+st.subheader("Training Data:")
+st.dataframe(df)
